@@ -1,0 +1,34 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+!pip install pingouin
+import pingouin as pg
+import seaborn as sns
+!pip install dython
+from dython.nominal import associations
+from pingouin import distance_corr
+df = pd.read_csv("/content/drive/MyDrive/Python stat/data.csv")
+
+df
+
+time = df['time']
+temperature = df['temperature']
+np.cov(time, temperature)
+
+pg.corr(df['time'], df['temperature'])
+
+sns.scatterplot(x=df['time'], y=df['temperature'])
+#There`s non-linear correlation
+
+(-0.12) ** 2 #Coefficient of determination
+
+df1 = df.corr()
+df1
+
+sns.heatmap(df1, annot=True)
+
+pg.normality(time, method='normaltest')
+
+pg.homoscedasticity(data=df, dv='time', between='temperature')
+
+#We used pingouin scientific library to estimate correlation between 2 numeric variables ("time" and "temperature"). Since we assume unlinear relationship between variables, we performed Spearman correlation. Data were checked for normality using omnibus normality test. We have found 2 statistically small negative correlations between: -0.29 - 0.09 (r = -0.103, p > 0.05). Multiple comparions test (Bonferonni) was performed to decrease the possibility of type I error. Adjusted p-values are in Table 4. The scatterplot is presented by img. 1, the heatmap - img. 2.
