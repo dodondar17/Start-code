@@ -1,1 +1,589 @@
+title: "Adult type Maturation of Human Induced Pluripotent Stem Cells Derived Cardiomyocytes (GSE134845)"
+author: "Daria Dodon"
+date: "2023-11-21"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+
+```{r, echo=FALSE}
+knitr::opts_knit$set(root.dir = 'C:/Users/pesvb/OneDrive/proj')
+setwd("C:/Users/pesvb/OneDrive/Desktop/proj")
+
+```
+
+```{r, echo=FALSE}
+library(DT)
+library(org.Hs.eg.db)
+library(biomaRt)
+library(dplyr)
+library(ggrepel)
+
+library(PCAtools)
+library(tidyverse)
+library(readr)
+library(tidyr)
+library(stringr)
+library(AnnotationHub)
+library(ensembldb)
+library(RColorBrewer)
+library(plotly)
+library(ggrepel)
+
+library(DESeq2)
+library(pheatmap)
+library(DEGreport)
+library(tximport)
+library(ggplot2)
+library(ggrepel)
+library(knitr)
+
+library(ggplotify)
+library(writexl)
+
+library(EnhancedVolcano)
+
+library(enrichR)
+library(fgsea)
+library(stats)
+library(pathview)
+
+count_matrix <- read.csv("C:/Users/pesvb/OneDrive/Desktop/py4e/count_matrix.csv")
+metadata_table <- counts <-read.csv("C:/Users/pesvb/OneDrive/Desktop/py4e/metadata.csv")
+
+
+#Count matrix
+Reads were aligned using HISAT2. Aligned reads were counted using HTSeq. Count matrix has been downloaded from GEO (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE134845), file name - 
+Supplementary file	Size	Download	File type/resource
+"GSE134845_ReadCounts.xlsx"
+```{r, echo=FALSE}
+datatable(count_matrix)
+```
+#Metadata
+
+Metadata consists of 9 samples, 3 replicates and periods of incubation - 30 days (d30), 60 days (d60) and cardiomimetic matrix maturation (CMM).
+
+```{r, echo=FALSE}
+datatable(metadata_table)
+```
+```{r, echo=FALSE}
+write.csv(count_matrix, "C:/Users/pesvb/OneDrive/Desktop/py4e/count_matrix.csv", row.names = FALSE)
+
+
+#Mapped id
+```{r, include=FALSE}
+org.Hs.eg.db
+
+keytypes(org.Hs.eg.db)
+
+count_matrix %>% unique()
+
+mapped_id <- mapIds(org.Hs.eg.db, count_matrix$ensembl_gene_id, "SYMBOL", "ENSEMBL")
+
+mapped_id <- mapped_id %>% as.data.frame() %>% tibble::rownames_to_column("ensembl_gene_id
+") %>% rename(SYMBOL = ".")
+datatable(mapped_id)
+```
+
+
+```{r, echo=FALSE}
+count_matrix_filtered <- read.csv("C:/Users/pesvb/OneDrive/Рабочий стол/py4e/Genomics course/week4/proj/count_matrix_filtered.csv", row.names = 1)
+metadata_table <- read.csv("C:/Users/pesvb/OneDrive/Рабочий стол/py4e/Genomics course/week4/proj/metadata.csv", row.names = 1)
+count_matrix <- read.csv("C:/Users/pesvb/OneDrive/Рабочий стол/py4e/Genomics course/week4/proj/count_matrix.csv", row.names = 1)
+count_matrix <- read.csv("C:/Users/pesvb/OneDrive/Рабочий стол/py4e/Genomics course/week4/proj/count_matrix.csv", row.names = 1)
+genes_mapped <- read.csv("C:/Users/pesvb/OneDrive/Рабочий стол/py4e/Genomics course/week4/proj/gene_names_mapped.csv")
+
+```
+#Exploratory analysis
+
+```{r, include=FALSE}
+dds <- DESeqDataSetFromMatrix(countData = count_matrix_filtered, colData = metadata_table,
+                              design = ~1)
+dds
+assay(dds)
+vsd <- vst(dds, blind = TRUE)
+counts_vst_filtered <- assay(vsd) %>% as.data.frame()
+datatable(counts_vst_filtered)
+```
+##PCA
+
+The biplot graph showing principal component analysis (PCA) score and loadings of different studied attributes of 300, 60 days maturation and CMM maturation. Groups of samples have differences in transcriptome.
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+pca_calculated <- pca(counts_vst_filtered, metadata = metadata_table, removeVar = 0.1)
+
+bioplot_pca<-biplot(pca_calculated, colby = "Time", legendPosition = "right", lab = NULL)
+bioplot_pca
+```
+
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+pairsplot_pca <-pairsplot(pca_calculated, colby = "Time")
+pairsplot_pca
+```
+##Heatmap
+Heatmap representation of differentially expressed genes belonging to the '30 days of maturation', '60 days of maturation' and 'CMM maturation'."d30" samples are more similar to "d60" samples than to "CMM"
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+matrix_correlations <- cor(counts_vst_filtered)
+counts_vst_filtered
+matrix_correlations
+clustering <- pheatmap(matrix_correlations, annotation = metadata_table, show_rownames = TRUE, show_colnames = FALSE)
+```
+
+
+```{r, include=FALSE}
+
+dds$Time <- as.factor(dds$Time)
+dds <- DESeqDataSetFromMatrix(countData = count_matrix_filtered, colData = metadata_table,
+                              design = ~ Time)
+vsd <- vst(dds, blind = TRUE)
+dds_lrt <- DESeq(dds, test = "LRT", reduced = ~ 1)
+results(dds_lrt)
+lrt_genes <- results(dds_lrt) %>% as.data.frame() %>% filter(padj < 0.01)
+
+datatable(lrt_genes)
+```
+##LRT clustering
+
+On the plots present significant differences in hiPSC maturation effect between any of the study timepoints.
+
+```{r, echo=FALSE, fig.height=8, fig.width=8}
+lrt_subset <- lrt_genes %>% arrange(padj) %>% head(n = 1000)
+lrt_subset <- lrt_subset %>% tibble::rownames_to_column("X")
+
+matrix_lrt <- assay(dds_lrt)[lrt_subset$X, ]
+matrix_lrt <- varianceStabilizingTransformation(matrix_lrt)
+
+results(dds_lrt)%>%as.data.frame()
+metadata_table$Time <- as.factor(metadata_table$Time)
+metadata_table
+gene_clusters<-degPatterns(matrix_lrt, metadata = metadata_table, time = "Time", col = NULL)+
+  theme_minimal()
+```
+
+
+```{r, include=FALSE}
+cluster_1 <- gene_clusters$df %>% filter(cluster %in% 1)
+cluster_1
+tmp <- genes_mapped %>% filter(ensembl_gene_id %in% cluster_1$genes)
+datatable(tmp)
+```
+
+
+```{r, include=FALSE}
+
+resultsNames(dds)
+
+dds <- DESeqDataSetFromMatrix(countData = count_matrix_filtered, colData = metadata_table,
+                              design = ~Time)
+
+dds <- DESeq(dds, test = "Wald")
+
+thirty_sixty <- results(dds, contrast = c("Time", "d60", "d30")) %>% as.data.frame() %>% tibble::rownames_to_column("gene")
+
+
+
+tmk <- genes_mapped %>% filter(ensembl_gene_id %in% thirty_sixty$gene) %>% rename(gene = ensembl_gene_id)
+
+tmk
+
+thirty_sixty_significant <- left_join(thirty_sixty, tmk, by = "gene") %>% select(-gene) %>% rename(gene = hgnc_symbol)
+
+results_1 <- thirty_sixty_significant %>% distinct(gene, .keep_all = TRUE) %>% tibble::column_to_rownames("gene")
+datatable(results_1)
+
+```
+##Volcanoplot
+
+###Volcanoplot "30 days vs 60 days"
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+thi_six <- EnhancedVolcano(thirty_sixty_significant,
+                lab = thirty_sixty_significant$gene,
+                x = "log2FoldChange",
+                y = "padj",
+                title = "30 days vs 60 days",
+                pCutoff = 0.01,
+                FCcutoff = 1.5,
+                ylim = c(0, 270)) + 
+  theme_minimal()
+thi_six
+```
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+
+thirty_sixty <- thirty_sixty[order(thirty_sixty$padj),]
+thirty_sixty_top <- thirty_sixty [1:1000,]
+
+thirty_sixty_top$diff_expressed <- ifelse(thirty_sixty_top$log2FoldChange > 1.5, "UP", ifelse(thirty_sixty_top$log2FoldChange < -1.5, "DOWN", "NO"))
+thirty_sixty_top$Diff_expressed <- as.factor(thirty_sixty_top$diff_expressed)
+
+vlcnplt_thirty_sixty_top<- ggplot(data = thirty_sixty_top, aes(x=log2FoldChange, y=-log10(padj), col = Diff_expressed, label = gene)) + geom_point() +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "black", "maroon")) +
+  labs(title="30 days vs 60 days") +
+  geom_text_repel() +
+  geom_vline(xintercept = c(-1.5, 1.5), col = "black")+
+  geom_hline(yintercept = -log10(0.1), col = "black")
+ggplotly(vlcnplt_thirty_sixty_top)
+
+```
+###Volcanoplot "30 days vs CMM"
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+resultsNames(dds)
+
+dds <- DESeqDataSetFromMatrix(countData = count_matrix_filtered, colData = metadata_table,
+                              design = ~Time)
+
+dds <- DESeq(dds, test = "Wald")
+
+thirty_CMM <- results(dds, contrast = c("Time", "d30", "CMM")) %>% as.data.frame() %>% tibble::rownames_to_column("gene")
+
+
+
+tmh <- genes_mapped %>% filter(ensembl_gene_id %in% thirty_CMM$gene) %>% rename(gene = ensembl_gene_id)
+
+thirty_CMM_significant <- left_join(thirty_CMM, tmh, by = "gene") %>% select(-gene) %>% rename(gene = hgnc_symbol)
+
+results_2 <- thirty_CMM_significant %>% distinct(gene, .keep_all = TRUE) %>% tibble::column_to_rownames("gene")
+
+thi_CMM <- EnhancedVolcano(thirty_CMM_significant,
+                lab = thirty_CMM_significant$gene,
+                x = "log2FoldChange",
+                y = "padj",
+                title = "30 days vs CMM",
+                pCutoff = 0.01,
+                FCcutoff = 1.5,
+                ylim = c(0, 330)) + 
+  theme_minimal()
+thi_CMM 
+```
+
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+thirty_CMM <- thirty_CMM[order(thirty_CMM$padj),]
+thirty_CMM_top <- thirty_CMM [1:1000,]
+
+thirty_CMM_top$diff_expressed <- ifelse(thirty_CMM_top$log2FoldChange > 1.5, "UP", ifelse(thirty_CMM_top$log2FoldChange < -1.5, "DOWN", "NO"))
+thirty_CMM_top$Diff_expressed <- as.factor(thirty_CMM_top$diff_expressed)
+
+vlcnplt_thirty_CMM_top<- ggplot(data = thirty_CMM_top, aes(x=log2FoldChange, y=-log10(padj), col = Diff_expressed, label = gene)) + geom_point() +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "black", "maroon")) +
+  labs(title="30 days vs CMM") +
+  geom_text_repel() +
+  geom_vline(xintercept = c(-1.5, 1.5), col = "black")+
+  geom_hline(yintercept = -log10(0.1), col = "black")
+ggplotly(vlcnplt_thirty_CMM_top)
+```
+
+###Volcanoplot "60 days vs CMM"
+
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+resultsNames(dds)
+
+dds <- DESeqDataSetFromMatrix(countData = count_matrix_filtered, colData = metadata_table,
+                              design = ~Time)
+
+dds <- DESeq(dds, test = "Wald")
+
+sixty_CMM <- results(dds, contrast = c("Time", "d60", "CMM")) %>% as.data.frame() %>% tibble::rownames_to_column("gene")
+
+
+
+tmb <- genes_mapped %>% filter(ensembl_gene_id %in% sixty_CMM$gene) %>% rename(gene = ensembl_gene_id)
+
+sixty_CMM_significant <- left_join(sixty_CMM, tmb, by = "gene") %>% select(-gene) %>% rename(gene = hgnc_symbol)
+
+results_3 <- sixty_CMM_significant %>% distinct(gene, .keep_all = TRUE) %>% tibble::column_to_rownames("gene")
+
+six_CMM <- EnhancedVolcano(sixty_CMM_significant,
+                lab = sixty_CMM_significant$gene,
+                x = "log2FoldChange",
+                y = "padj",
+                title = "60 days vs CMM",
+                pCutoff = 0.01,
+                FCcutoff = 1.5,
+                ylim = c(0, 250)) + 
+  theme_minimal()
+six_CMM 
+```
+
+```{r, echo = FALSE, fig.height = 6, fig.width=6}
+
+sixty_CMM <- sixty_CMM[order(sixty_CMM$padj),]
+sixty_CMM_top <- sixty_CMM [1:1000,]
+
+sixty_CMM_top$diff_expressed <- ifelse(sixty_CMM_top$log2FoldChange > 1.5, "UP", ifelse(sixty_CMM_top$log2FoldChange < -1.5, "DOWN", "NO"))
+sixty_CMM_top$Diff_expressed <- as.factor(sixty_CMM_top$diff_expressed)
+
+vlcnplt_sixty_CMM_top<- ggplot(data = sixty_CMM_top, aes(x=log2FoldChange, y=-log10(padj), col = Diff_expressed, label = gene)) + geom_point() +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "black", "maroon")) +
+  labs(title="60 days vs CMM") +
+  geom_text_repel() +
+  geom_vline(xintercept = c(-1.5, 1.5), col = "black")+
+  geom_hline(yintercept = -log10(0.1), col = "black")
+ggplotly(vlcnplt_sixty_CMM_top)
+```
+As a result of analyzing all the volcanoplots, we observe a significant change in gene expression when comparing different maturation periods. The highest "up" expression was observed when comparing “30 days vs MCC”, and the “down” value had the highest and most widespread expression when comparing “30 days vs 60 days”.
+
+```{r, include=FALSE}
+
+res_thi_six_ashr<-results_1 %>% filter(padj < 0.01 & (log2FoldChange > 1.5 | log2FoldChange < -1.5))
+
+res_thi_CMM_ashr<-results_2 %>% filter(padj < 0.01 & (log2FoldChange > 1.5 | log2FoldChange < -1.5))
+
+res_six_CMM_ashr<-results_3 %>% filter(padj < 0.01 & (log2FoldChange > 1.5 | log2FoldChange < -1.5))
+
+```
+
+
+```{r, include=FALSE}
+th_six_up <- res_thi_six_ashr %>% filter(padj < 0.05, log2FoldChange > 1.5)
+th_six_down <- res_thi_six_ashr %>% filter(padj < 0.05, log2FoldChange < -1.5)
+
+th_CMM_up <- res_thi_CMM_ashr %>% filter(padj < 0.05, log2FoldChange > 1.5)
+th_CMM_down <- res_thi_CMM_ashr %>% filter(padj < 0.05, log2FoldChange < -1.5)
+
+six_CMM_up <- res_six_CMM_ashr %>% filter(padj < 0.05, log2FoldChange > 1.5)
+six_CMM_down <- res_six_CMM_ashr %>% filter(padj < 0.05, log2FoldChange < -1.5)
+```
+##EnrichR
+
+```{r, include=FALSE}
+setEnrichrSite("Enrichr")
+dbs <- c("MSigDB_Hallmark_2020", "Reactome_2022", "WikiPathways_2019_Human")
+
+th_six_up_ora <- enrichr(rownames(th_six_up), dbs) 
+th_six_down_ora <- enrichr(rownames(th_six_down), dbs)
+
+th_CMM_up_ora <- enrichr(rownames(th_CMM_up), dbs)
+th_CMM_down_ora <- enrichr(rownames(th_CMM_down), dbs)
+
+six_CMM_up_ora <- enrichr(rownames(six_CMM_up), dbs)
+six_CMM_down_ora <- enrichr(rownames(six_CMM_down), dbs)
+
+```
+
+
+```{r, include=FALSE}
+th_six_up_ora_sig <- th_six_up_ora$WikiPathways_2019_Human %>%
+  filter(Adjusted.P.value < 0.05) %>% 
+  arrange(desc(Combined.Score))
+th_six_down_ora_sig <- th_six_down_ora$WikiPathways_2019_Human %>%
+  filter(Adjusted.P.value < 0.05) %>% 
+  arrange(desc(Combined.Score))
+
+
+th_CMM_up_ora_sig <- th_CMM_up_ora$WikiPathways_2019_Human %>%
+  filter(Adjusted.P.value < 0.05) %>%
+  arrange(desc(Combined.Score))
+th_CMM_down_ora_sig <- th_CMM_down_ora$WikiPathways_2019_Human %>% 
+  filter(Adjusted.P.value < 0.05) %>%
+  arrange(desc(Combined.Score))
+
+
+
+six_CMM_up_ora_sig <- six_CMM_up_ora$WikiPathways_2019_Human %>%
+  filter(Adjusted.P.value < 0.05) %>%
+  arrange(desc(Combined.Score))
+six_CMM_down_ora_sig <- six_CMM_down_ora$WikiPathways_2019_Human %>%
+  filter(Adjusted.P.value < 0.05) %>%
+  arrange(desc(Combined.Score))
+```
+
+
+```{r, include=FALSE}
+source("C:/Users/pesvb/OneDrive/Desktop/proj/0_functions.R")
+th_six_up_ora_sig <- dataframe_to_enrichr(th_six_up_ora_sig)
+th_six_down_ora_sig <- dataframe_to_enrichr(th_six_down_ora_sig)
+
+th_CMM_up_ora_sig <- dataframe_to_enrichr(th_CMM_up_ora_sig)
+th_CMM_down_ora_sig <- dataframe_to_enrichr(th_CMM_down_ora_sig)
+
+six_CMM_up_sig<- dataframe_to_enrichr(six_CMM_up_ora_sig)
+six_CMM_down_ora_sig<- dataframe_to_enrichr(six_CMM_down_ora_sig)
+```
+###EnrichR "30 vs 60 days up"
+
+
+```{r, echo = FALSE, fig.height = 8, fig.width=10}
+
+ggplot(th_six_up_ora_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+###EnrichR "30 vs 60 days down"
+
+```{r, echo = FALSE, fig.height = 8, fig.width=10}
+ggplot(th_six_down_ora_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+###EnrichR "30 days vs CMM days up"
+
+```{r, echo = FALSE, fig.height = 8, fig.width=10}
+ggplot(th_CMM_up_ora_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+###EnrichR "30 days vs CMM days down"
+
+```{r, echo = FALSE, fig.height = 8, fig.width=10}
+ggplot(th_CMM_down_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+###EnrichR "60 days vs CMM days up"
+
+```{r, echo = FALSE, fig.height = 8, fig.width=10}
+ggplot(six_CMM_up_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+###EnrichR "60 days vs CMM days down"
+
+```{r}
+ggplot(six_CMM_down_ora_sig, aes(x = reorder(Term, Gene_number),
+                           y = Gene_number,
+                           fill = -log(Adjusted.P.value, base = 10))) +
+  geom_bar(stat = "identity", width = 0.5, alpha = 0.8) + coord_flip() 
+```
+After comparing the analysis EnrichR, it was found that there is an enrichment of genes that are responsible for "Up" - Nuclear receptors meta-pathway, vitamin D receptor pathway, Metapathway biotransformation Phase I and II, Focal adhesion- PI3K-Akt-mTOR-signaling pathway,PI3K-AKT Signaling Pathway and top, and some of them are also involved in "DOWN" (PI3K-AKT Signaling Pathway, Focal adhesion- PI3K-Akt-mTOR-signaling pathway). This`s important for such processes in the cell as proliferation, differentiation, support of homeostasis and metabolism of the organism, regulation of transcription and processes of transformation of substances in the cell, its survival and motility, as well as growth and angiogenesis.
+
+```{r, include=FALSE}
+write.csv(results_1, "C:/Users/pesvb/OneDrive/Desktop/proj/results_1.csv", row.names = FALSE)
+write.csv(results_2, "C:/Users/pesvb/OneDriveDesktop/proj/results_2.csv", row.names = FALSE)
+write.csv(results_3, "C:/Users/pesvb/OneDrive/Desktop/proj/results_3.csv", row.names = FALSE)
+```
+
+##GSEA analysis
+```{r, include=FALSE}
+hallmark <- gmtPathways("C:/Users/pesvb/OneDrive/Desktop/proj/h.all.v2023.1.Hs.symbols.gmt")
+```
+
+
+```{r, include=FALSE}
+
+results_1$rownames_column <- rownames(results_1)
+results_1 <- results_1[c("rownames_column", setdiff(names(results_1), "rownames_column"))]
+names(results_1)[1] <- "X"
+results_1$index_column <- as.numeric(rownames(results_1))
+rownames(results_1) <- NULL
+
+
+results_2$rownames_column <- rownames(results_2)
+results_2 <- results_2[c("rownames_column", setdiff(names(results_2), "rownames_column"))]
+results_2 %>% dplyr::filter(!is.na(padj)) %>% dplyr::filter(!is.na(log2FoldChange))
+names(results_2)[1] <- "X"
+results_2$index_column <- as.numeric(rownames(results_2))
+rownames(results_2) <- NULL
+
+results_3$rownames_column <- rownames(results_3)
+results_3 <- results_3[c("rownames_column", setdiff(names(results_3), "rownames_column"))]
+results_3 %>% dplyr::filter(!is.na(padj)) %>% dplyr::filter(!is.na(log2FoldChange))
+names(results_3)[1] <- "X"
+results_3$index_column <- as.numeric(rownames(results_3))
+rownames(results_3) <- NULL
+
+results_1 %>% filter(!is.na(padj), !is.na(log2FoldChange), is.finite(padj), is.finite(log2FoldChange))
+
+
+results_3 %>% filter(!is.na(padj), !is.na(log2FoldChange), is.finite(padj), is.finite(log2FoldChange))
+
+```
+
+```{r, include=FALSE}
+ranked_th_six <- results_1 %>% mutate(rank = (-log2FoldChange * abs(-log10(padj)))) %>% arrange(rank)
+
+
+ranked_six_CMM <- results_3 %>% mutate(rank = (-log2FoldChange * abs(-log10(padj)))) %>% arrange(rank)
+```
+
+```{r, include=FALSE}
+cleaned_results <- results_2 %>%
+  filter(!is.na(padj), !is.na(log2FoldChange), is.finite(padj), is.finite(log2FoldChange)) %>%
+  mutate(rank = pmin(-log2FoldChange * abs(-log10(padj)), Inf))
+
+ranked_data <- cleaned_results %>%
+  select(X, rank) %>%
+  filter(!is.na(rank))
+ranked_data <- ranked_data[ranked_data$rank != -Inf, ]
+
+ranked_th_CMM <- ranked_data %>% select(X, rank) %>% tibble::deframe()
+
+```
+
+
+```{r, include=FALSE}
+
+results_1 %>% dplyr::filter(!is.na(padj)) %>% dplyr::filter(!is.na(log2FoldChange))
+results_3 %>% dplyr::filter(!is.na(padj)) %>% dplyr::filter(!is.na(log2FoldChange))
+```
+
+
+```{r, include=FALSE}
+
+
+ranked_th_six <- results_1 %>% mutate(rank = (-log2FoldChange * abs(-log10(padj)))) %>% select(X, rank) %>% tibble::deframe()
+
+
+ranked_six_CMM <- results_3 %>% mutate(rank = (-log2FoldChange * abs(-log10(padj)))) %>% select(X, rank) %>% tibble::deframe()
+```
+
+```{r, include=FALSE}
+ranked_th_six <- na.omit(ranked_th_six)
+
+ranked_six_CMM <- na.omit(ranked_six_CMM)
+
+any(!is.finite(ranked_th_CMM$rank))
+str(str(ranked_th_CMM))
+```
+
+```{r, include=FALSE}
+fgseaRes_ranked_th_six <- fgsea(pathways = hallmark, stats = ranked_th_six)
+fgseaRes_ranked_th_CMM <- fgsea(pathways = hallmark, stats = ranked_th_CMM)
+fgseaResranked_six_CMM <- fgsea(pathways = hallmark, stats = ranked_six_CMM)
+
+```
+
+
+```{r, echo=FALSE}
+fgseaRes_ranked_th_six %>% filter(padj <0.25)%>% arrange(desc(NES))
+datatable(fgseaRes_ranked_th_six)
+```
+
+
+```{r, echo=FALSE}
+fgseaRes_ranked_th_CMM %>% filter(padj <0.25)%>% arrange(desc(NES))
+datatable(fgseaRes_ranked_th_CMM)
+```
+
+```{r, echo=FALSE}
+fgseaResranked_six_CMM %>% filter(padj <0.25)%>% arrange(desc(NES))
+datatable(fgseaResranked_six_CMM)
+```
+As a result of GSEA analysis, we see that there are no changes in the mechanisms in which the analyzed genes take part when comparing all three time periods. There are only numerical changes in GSEA analysis (pval, padj etc). These processes are included in the regulation of tissue metabolism and are the norm for this structure.
+
+```{r}
+#Nodes
+
+
+ensembl1 <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+#a problem with bioMart: my program doesn`t accept the packet
+
+biomart_list1 <- biomaRt::getBM(filter = "hgnc_symbol",
+                      attributes = c("hgnc_symbol", "entrezgene_id"),
+                      values = result_1$X, mart = ensembl1)
+```
+
 
