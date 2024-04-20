@@ -1,0 +1,49 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from collections import Counter
+import numpy as np
+!pip install pingouin
+import pingouin as pg
+from scipy.stats import fisher_exact
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+df = pd.read_excel("/content/drive/MyDrive/Python stat/Homework.xlsx")
+df
+
+pd.crosstab(index=df['Death'], columns=[df['GR'], df['SFTP-B']])
+
+E1, O1, test1 = pg.chi2_independence(data=df, x='Death', y='GR', correction=False)
+E2, O2, test2 = pg.chi2_independence(data=df, x='Death', y='SFTP-B', correction=False)
+
+E1
+
+E2
+
+O1
+
+O2
+
+test1
+
+test2
+
+sns.countplot(x=df['Death'], hue=df['GR'])
+
+sns.countplot(x=df['Death'], hue=df['SFTP-B'])
+
+contingency_table = [[11,	18,	3,	9,	13,	7,	3,	1,	3], [8,	3,	4,	5,	15,	4,	4,	1,	5]]
+sub_contingency_table = [contingency_table[0][:2], contingency_table[1][:2]]
+
+odds_ratio, p_value = fisher_exact(sub_contingency_table)
+
+print(f"Odds Ratio: {odds_ratio}")
+print(f"P-value: {p_value}")
+
+if p_value < 0.05:
+    print("There is a significant association between the variables.")
+else:
+    print("There is no significant association between the variables.")
+#We used chi-square method for analyzing 3 categorical variables - Death, GR, and SFTP-B. Сhi-square statistics for test1 (chi2 = 4.174668, dof = 2, pval> 0.05, cramer = 0.188894, power = 0.431326); for test2 (chi2 = 1.158815, dof = 2, pval> 0.05, cramer = 0.099521, power = 0.146978)
