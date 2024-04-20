@@ -1,0 +1,42 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+!pip install pingouin
+import pingouin as pg
+
+cells_data = {'SRA Acc.': ["SRR534319", "SRR534291", "SRR545695", "SRR387661", "SRR307911", "SRR545723", "SRR315323", "SRR307903", "SRR315334", "SRR534307"],
+           'GEO Acc.':["GSM981256", "GSM981244", "GSM984609", "GSM840137", "GSM758566 ", "GSM984621", "GSM981252", "GSM765399", "GSM758562 ", "GSM765404"],
+           'Cell Line': ["CD20+", "H1-hESC", "CD14", "K562", "H1-hESC", "H1-hESC", "K562", "K562", "CD20+", "CD14"],
+           'Drug_candidate_1': [77, 197, 69, 87, 145, 123, 111, 98, 69, 86]}
+
+df= pd.DataFrame(cells_data)
+df
+
+sns.barplot(data=df, x='Cell Line', y='Drug_candidate_1')
+
+pg.anova(data=df, dv='Drug_candidate_1', between='Cell Line')
+
+df['Cell Line'].value_counts()
+
+pg.pairwise_gameshowell(data=df, dv='Drug_candidate_1', between='Cell Line')
+
+!pip install statannot
+from statannot import add_stat_annotation
+
+ax = sns.barplot(data=df, x='Cell Line', y='Drug_candidate_1')
+test_results = add_stat_annotation(ax, data=df, x='Cell Line', y='Drug_candidate_1',
+                                   test='t-test_ind', text_format='star',
+                                   box_pairs=[('CD14', 'CD20+'), ('CD20+', 'H1-hESC'), ('H1-hESC', 'CD14'), ('K562', 'CD14'), ('K562', 'H1-hESC'), ('H1-hESC', 'CD20+'), ('K562', 'CD20+')],
+                                   loc='outside')
+test_results
+
+pg.homoscedasticity(data=df, dv='Drug_candidate_1', group='Cell Line')
+
+pg.normality(data=df, dv='Drug_candidate_1', group='Cell Line', method='normaltest')
+
+df.groupby("Cell Line").agg({"Drug_candidate_1": ['mean', 'std', 'sem']})
+
+#Statistical analysis was performed using One-way ANOVA was used to compare the differences between the group means. Normality of data was checked using Omnibus test. Homoscedasticity was checked using Levine test. Games-Howell test was used for multiple comparisons.
+
+#Results: There were a statistically significant difference in means between groups: "Cell Line" & "Drug_candidate_1" (means: 77.5 (CD14); 73 (CD20+); 155 (H1-hESC); 98.6 (K562) += SEM 8.5 (CD14); 4 (H1-hESC); (K562)) F = 6.660232 (df1=3, df2=6), p < 0.05. Using multiple comparison correction we observed statistically significant differences between groups: 'CD14' mean=73 and 'CD20+' mean=73 (diff=4.5); 'CD20+' mean=73 and 'H1-hESC' mean=155 (diff=-82); 'H1-hESC' mean=155 and 'CD14' mean=77.5 (diff=-77.5); 'K562' mean=98.66 and 'CD14' mean=77.5 (diff=-21.166); 'K562' mean=98.66 and 'H1-hESC' mean=155 (diff=56.33); 'H1-hESC' mean=155 and 'CD20+' mean=73 (diff=-82); 'K562' mean=98.66 and 'CD20+' mean==73 (diff=-25.66).
