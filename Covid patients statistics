@@ -1,0 +1,66 @@
+import pandas as pd
+df = pd.read_excel("/content/drive/MyDrive/Python stat/Covid.xlsx")
+df
+
+df.isna().sum()
+df["COVID_19_course"]
+df["Creatinine_1"]
+
+!pip install pingouin
+import pingouin as pg
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+!pip install pingouin
+import pingouin as pg
+
+sns.boxplot(data=df, x='COVID_19_course', y='Creatinine_1')
+plt.figure(figsize=(12, 8), dpi=300)
+
+filtr_sev=df['COVID_19_course'] == "severe"
+df[filtr_sev]
+only_sev = df[filtr_sev]
+only_sev['Creatinine_1'].mean()
+Creatinine_1_mean = only_sev['Creatinine_1'].mean()
+only_sev['Creatinine_1'].std()
+
+Creatinine_1_std = only_sev['Creatinine_1'].std()
+only_sev['z_Creatinine_1'] = (only_sev['Creatinine_1']- Creatinine_1_mean) / Creatinine_1_std
+only_sev.head
+(only_sev['z_Creatinine_1'] > 3).any()
+(only_sev['z_Creatinine_1'] < -3).any()
+
+filtr_mod=df['COVID_19_course'] == "moderate"
+df[filtr_mod]
+only_mod = df[filtr_mod]
+
+only_mod['Creatinine_1'].mean()
+only_mod['Creatinine_1'].std()
+
+Creatinine_1_mod_mean = only_mod['Creatinine_1'].mean()
+Creatinine_1_mod_std = only_mod['Creatinine_1'].std()
+
+df.drop([44,93], inplace=True)
+
+sns.boxplot(data=df, x='COVID_19_course', y='Creatinine_1')
+
+sns.barplot(data=df, x='COVID_19_course', y='Creatinine_1', errorbar="sd")
+
+pg.normality(data=df, dv='Creatinine_1', group='COVID_19_course', method='normaltest')
+
+pg.homoscedasticity(data=df, dv='Creatinine_1', group='COVID_19_course')
+
+
+severe = df.query('COVID_19_course == "severe"')['Creatinine_1']
+moderate = df.query('COVID_19_course == "moderate"')['Creatinine_1']
+
+pg.ttest(severe, moderate, correction=True)
+
+df.groupby("COVID_19_course").agg({"Creatinine_1": ['mean', 'std', 'sem']})
+
+pg.ttest(severe, moderate, correction=False)
+
+#We used Python "pingouin" library (ver.052, link) to perform statistical analysis. To compare 2 means between groups we used Student (*Welch) test. Normality of data was checked with Shapiro-Wilk(omnibus) test. Homoscedasticity was analyzed using Levene test.
+
+#Results: Difference between means was 10.26 (Mean in moderates was 100.23, += 17.2, SEM = 2.63 (CI95%), Mean in severes - 110.5, += 26.7, SEM = 3.58. CI95% - [0.96, 19.57]. We obtained t= 2.19 (df = 97, p < 0.05). Effect size is reported at 0.44 (Cohen's d) level which means medium effect. So, we conclude that these difference in means between groups is statistically significant at the level p < 0.05 and have medium effect.
